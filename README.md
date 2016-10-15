@@ -31,3 +31,5 @@ For each particle:
 For each particle:
 
   Calculate the acceleration of the particle and integrate (5)
+
+ More infomation, formulas and illustrations are available on my blog post https://mynameislaurence.com/2015/08/16/realtime-fluid-simulation-in-java/
