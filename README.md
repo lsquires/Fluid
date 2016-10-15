@@ -1,6 +1,12 @@
 # Fluid
 A 2d fluid simulation using libgdx
 
+
+Infomation, formulas and illustrations are available on my blog post https://mynameislaurence.com/2015/08/16/realtime-fluid-simulation-in-java/
+ 
+Please read the above links as they have the correct pictures and formatting.
+
+
 The Basics
 
 The most common approach to simulating fluids is to use SPH (Smoothed Particle Hydrodynamics) This approach uses lots of particles to represent the fluid as they interact with each other by exerting a range of different forces on each other, all of which can be derived from the original navier-stokes equations. The forces are pressure, viscosity, external (boundaries, gravity or use interactions) and surface tension.
@@ -32,4 +38,3 @@ For each particle:
 
   Calculate the acceleration of the particle and integrate (5)
 
- More infomation, formulas and illustrations are available on my blog post https://mynameislaurence.com/2015/08/16/realtime-fluid-simulation-in-java/
