@@ -3,8 +3,8 @@ A 2d fluid simulation using libgdx
 
 The Basics
 
-The most common approach to simulating fluids is to use SPH (Smoothed Particle Hydrodynamics) This approach uses lots of particles to represent the fluid and they interact with each other by exerting a range of different forces on each other, all of which can be derived from the original navier-stokes equations. The forces are pressure, viscosity, external (boundaries, gravity or use interactions) and surface tension.
-In every new frame these forces are calculated for each particle based on formulas and a smoothing kernel, which is a function that scales the force according to how close the particles are, so the forces stay local. The forces are then summed and divided by the mass to calculate acceleration (F=ma) which is integrated to calculate the velocity and then new position.
+The most common approach to simulating fluids is to use SPH (Smoothed Particle Hydrodynamics) This approach uses lots of particles to represent the fluid as they interact with each other by exerting a range of different forces on each other, all of which can be derived from the original navier-stokes equations. The forces are pressure, viscosity, external (boundaries, gravity or use interactions) and surface tension.
+In every new frame these forces are calculated for each particle based on formulas and a smoothing kernel, which is a function that scales the force according to how close the particles are, so the forces stay local. The forces are then summed and divided by the mass to calculate acceleration (F=ma) which is integrated to calculate the velocity and the new position.
 Each particle is defined to have a set mass, position, velocity. As well as universal constants for the entire fluid such as viscosity, pressure stiffness, smoothing width.
 
  
