@@ -1,5 +1,7 @@
 package com.mynameislaurence.fluid;
 
+import com.badlogic.gdx.math.Vector2;
+
 import java.util.ArrayList;
 
 /**
@@ -8,32 +10,44 @@ import java.util.ArrayList;
 public class Particle {
 
     private final Simulation sim;
-    public double xpos;
-    public double ypos;
-    public double xvel;
-    public double yvel;
-    public double density;
-    public double pressure;
-    public double pressureoverdensityx;
-    public double pressureoverdensityy;
-    public double visoelasticflowoverdensityx;
-    public double visoelasticflowoverdensityy;
-    public double mass;
+    public Vector2 pos;
+    public Vector2 vel;
+    public Vector2 beforevel = Vector2.Zero;
+    public Vector2 aftervel = Vector2.Zero;
+
+
+    public float density;
+    public float pressure;
+    public Vector2 Fpressure;
+    public Vector2 Fviscosity;
+    public Vector2 Fsurface;
+    public float mass;
     public boolean solid;
     public int num;
     public ArrayList<Particle> particleneighbour = new ArrayList<Particle>();
+    public float redness;
+    public float changec;
 
-
-    public Particle(Simulation s,double x,double y,double xv,double yv,boolean sol,double m,int n)
+    public Particle(Simulation s,float x,float y,float xv,float yv,boolean sol,float m,int n)
     {
         sim = s;
-        xpos = x;
-        ypos = y;
-        xvel = xv;
-        yvel = yv;
+        pos = new Vector2(x,y);
+        vel = new Vector2(xv,yv);
+        beforevel = aftervel = vel;
         mass = m;
         solid = sol;
+
         num =n;
+    }
+
+    public Vector2 getPos()
+    {
+        return pos.cpy();
+    }
+
+    public Vector2 getVel()
+    {
+        return vel.cpy();
     }
 
 

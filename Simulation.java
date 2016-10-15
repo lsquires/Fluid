@@ -1,8 +1,12 @@
 package com.mynameislaurence.fluid;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.graphics.g2d.ParticleEmitter;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.Sprite;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.Vector2;
 
 import java.util.ArrayList;
 
@@ -13,38 +17,75 @@ public class Simulation {
 
     public ArrayList<Particle> particles = new ArrayList<Particle>();
 
-    public double visocityConstant;
-    public double densityConstant;
-    public double smoothingWidth;
 
-    public double calcDensityConstant;
-    public double calcPressureConstant;
-    public double calcViscConstant;
-    public double stiffnessConstant;
-    public double restDensityConstant;
+    public float calcDensityConstant;
+    public float calcPressureConstant;
+    public float calcViscConstant;
+    public float calcSurfConstant;
+
+
+    public Vector2 gravity;
+    public float timestep;
+    public float restDensity;
+    public float mass;
+    public float viscosity;
+    public float surfaceTension;
+    public float cr;
+    public float hwidth;
+    public float kstiffness;
+
+    public float simTime;
+    public float realTime;
+    public int num;
+    public float thresholdsqr;
+
 
     public void init() {
-        visocityConstant = 0.001f;
-        densityConstant = 1;
-        smoothingWidth = 2;
-        stiffnessConstant = 500f;
 
-        calcDensityConstant = (315d) / (64d * Math.PI * Math.pow(smoothingWidth, 9));
-        calcPressureConstant = (45d) / (Math.PI * Math.pow(smoothingWidth, 6));
-        calcViscConstant = (45d) / (Math.PI * Math.pow(smoothingWidth, 6));
+        gravity = new Vector2(0f, -9.82f);
+        timestep = 0.005f;
+        restDensity = 99.89f;
+        mass = 0.02f;
+        viscosity = 1.5f;
+        surfaceTension = 0.2728f;
+        cr = 1f;
+        hwidth = 0.0457f;
+        kstiffness = 14f;
+        thresholdsqr = 9.5f;
+        simTime = 0;
+        realTime = 0;
+        gravity.scl(restDensity);
 
-        restDensityConstant = 1000;
+        surfaceTension = 0.5728f;
+        hwidth = 0.1557f;
+        // hwidth = 0.2857f;
 
-        for (double x = 0; x < 50d; x++) {
-            for (double y = 0; y < 10d; y++) {
-                particles.add(new Particle(this, 1 + x, 1.1 + y, 0, 0, false, 0.01, (int) (x * 100 + y)));
+
+        calcDensityConstant = (float) ((315d) / (64d * Math.PI * Math.pow(hwidth, 9)));
+        calcPressureConstant = (float) ((-45d) / (Math.PI * Math.pow(hwidth, 6)));
+        calcViscConstant = (float) ((45d) / (Math.PI * Math.pow(hwidth, 6)));
+        calcSurfConstant = (float) ((-945d) / (32d * Math.PI * Math.pow(hwidth, 9)));
+
+        num = 0;
+
+        for (int x = 0; x < 20; x++) {
+            for (int y = 0; y < 20; y++) {
+                num++;
+                particles.add(new Particle(this, 0.5f + x / 35f + (float) (Math.random()) / 150f, 0.5f + y / 35f + (float) (Math.random()) / 150f, 0, 0, false, mass, num));
             }
         }
+
     }
 
     public void update(float deltaTime) {
-        System.out.println("Updating d:" + deltaTime);
-        double checkingDistance = smoothingWidth * smoothingWidth;
+
+        realTime += deltaTime;
+        simTime += timestep;
+        deltaTime = timestep;
+        System.out.println("Updating   t=" + realTime + "      st=" + simTime);
+
+
+        double checkingDistance = hwidth * hwidth;
 
         for (int i = 0; i < particles.size(); i++) {
             Particle p = particles.get(i);
@@ -53,106 +94,109 @@ public class Simulation {
             p.particleneighbour = new ArrayList<Particle>();
             for (int j = 0; j < particles.size(); j++) {
                 p2 = particles.get(j);
-
-
-                if ((j != i) && (p.num != p2.num) && (distSq(p, p2) <= checkingDistance)) {
-
+                if ((p.num != p2.num) && (p.pos.dst2(p2.pos) <= checkingDistance)) {
                     p.particleneighbour.add(particles.get(j));
                 }
             }
 
-            double density = 0;
+
+            float density = 0;
             for (int j = 0; j < p.particleneighbour.size(); j++) {
                 p2 = p.particleneighbour.get(j);
-                double ds = Math.pow((smoothingWidth * smoothingWidth - distSq(p, p2)), 3);
-                density = density + (p2.mass * (calcDensityConstant) * ds);
+                density += p2.mass * densityKernel(dis(p, p2), hwidth);
             }
-            p2 = p;
-            double ds = Math.pow((smoothingWidth * smoothingWidth), 3);
-            density = density + (p2.mass * (calcDensityConstant) * ds);
-
+            density += p.mass * densityKernel(dis(p, p), hwidth);
             p.density = density;
-        }
 
-        for (int i = 0; i < particles.size(); i++) {
-            Particle p = particles.get(i);
-            p.pressure = stiffnessConstant * stiffnessConstant * (p.density - restDensityConstant);
 
+            p.pressure = kstiffness * (p.density - restDensity);
         }
 
         for (int i = 0; i < particles.size(); i++) {
             //Pressure
-            double pressurex = 0;
-            double pressurey = 0;
             Particle p = particles.get(i);
             Particle p2;
 
-
+            Vector2 pressureForce = new Vector2(0, 0);
+            Vector2 viscoForce = new Vector2(0, 0);
+            Vector2 surfaceForcen = new Vector2(0, 0);
+            float surfaceForcedn = 0;
             for (int j = 0; j < p.particleneighbour.size(); j++) {
                 p2 = p.particleneighbour.get(j);
-                double dis = dist(p, p2);
-                double dsx = Math.pow(smoothingWidth - Math.abs(p2.xpos - p.xpos), 2) * ((p2.xpos - p.xpos) / (dis));
-                double dsy = Math.pow(smoothingWidth - Math.abs(p2.ypos - p.ypos), 2) * ((p2.ypos - p.ypos) / (dis));
-                pressurex = pressurex + ((p2.mass * ((p.pressure + p2.pressure) / (2 * p2.density * p.density))) * (calcPressureConstant) * dsx);
-                pressurey = pressurey + ((p2.mass * ((p.pressure + p2.pressure) / (2 * p2.density * p.density))) * (calcPressureConstant) * dsy);
 
+                pressureForce.sub(pressureKernel(dis(p, p2), hwidth).scl((float) (p2.mass * (p.pressure + p2.pressure) * (1 / (2 * p2.density)))));
+
+                viscoForce.add(p2.getVel().sub(p.vel).scl(p2.mass * (1 / p2.density) * viscoKernel(dis(p, p2), hwidth)));
+
+                surfaceForcen.add(getSurfacenKernel(dis(p, p2), hwidth).scl(p2.mass / p2.density));
+                surfaceForcedn += (getSurfacekKernel(dis(p, p2), hwidth) * (p2.mass / p2.density));
             }
 
-            p.pressureoverdensityx = -pressurex;
-            p.pressureoverdensityy = -pressurey;
+            surfaceForcen.add(getSurfacenKernel(dis(p, p), hwidth).scl(p.mass / p.density));
+            surfaceForcedn += (getSurfacekKernel(dis(p, p), hwidth) * (p.mass / p.density));
+
+            float surfacel = surfaceForcen.len2();
+            p.redness = surfacel / (thresholdsqr * 16f);
+            if (surfacel > thresholdsqr) {
+                p.Fsurface = surfaceForcen.scl(surfaceTension * (-surfaceForcedn / (float) Math.sqrt(surfacel)));
+            } else {
+                p.Fsurface = Vector2.Zero;
+            }
+
+
+            viscoForce.scl(viscosity);
+            p.Fviscosity = viscoForce;
+
+            p.Fpressure = pressureForce;
+
 
         }
 
-        for (int i = 0; i < particles.size(); i++) {
-            //Viscosity
-            double visx = 0;
-            double visy = 0;
-            Particle p = particles.get(i);
-            Particle p2;
-            for (int j = 0; j < p.particleneighbour.size(); j++) {
-                p2 = p.particleneighbour.get(j);
-                double dsx = smoothingWidth - Math.abs(p2.xpos - p.xpos);
-                double dsy = smoothingWidth - Math.abs(p2.ypos - p.ypos);
-
-                visx = visx + (p2.mass * ((p2.xvel - p.xvel) / p2.density) * (calcViscConstant) * dsx);
-                visy = visy + (p2.mass * ((p2.yvel - p.yvel) / p2.density) * (calcViscConstant) * dsy);
-            }
-        }
 
         for (int i = 0; i < particles.size(); i++) {
             Particle p = particles.get(i);
 
             if (!p.solid) {
 
-                //final calc for movement
-                double accelerationx = (p.pressureoverdensityx + p.visoelasticflowoverdensityx);
-                double accelerationy = -10 + (p.pressureoverdensityy + p.visoelasticflowoverdensityy);
-
-                p.xvel = p.xvel + accelerationx * deltaTime;
-                p.yvel = p.yvel + accelerationy * deltaTime;
+                Vector2 totalForce = new Vector2(0, 0);
 
 
-                p.xpos = p.xpos + p.xvel * deltaTime;
-                p.ypos = p.ypos + p.yvel * deltaTime;
+                totalForce.add(p.Fpressure);
+                totalForce.add(p.Fviscosity);
+                totalForce.add(p.Fsurface);
+                totalForce.add(gravity);
+                totalForce.scl(1 / p.density);
 
-                //added collisions with side of container
-                if (p.ypos <= 1 && p.yvel < 0) {
-                    //p.ypos = 1;
-                    p.yvel = -0.9 * p.yvel;
-                    p.xvel = 0.9 * p.xvel;
-                    p.ypos = 1 + (1 - p.ypos);
+
+                p.aftervel = p.beforevel.cpy().add(totalForce.scl(deltaTime));
+                p.vel = (p.beforevel.cpy().add(p.aftervel)).scl(0.5f);
+                p.beforevel = p.aftervel;
+                p.pos.add(p.aftervel.cpy().scl(deltaTime));
+
+
+                if (p.pos.y <= 0) {
+                    if (p.aftervel.y < 0) {
+                        p.aftervel.scl(cr, -cr);
+                    }
+                    p.vel = p.aftervel;
+                    p.beforevel = p.aftervel;
+                    p.pos.set(p.pos.x, -p.pos.y);
                 }
-                if (p.xpos <= 0 && p.xvel < 0) {
-                    // p.xpos = 0;
-                    p.xvel = -0.9 * p.xvel;
-                    p.yvel = 0.9 * p.yvel;
-                    p.xpos = -p.xpos;
+                if (p.pos.x <= 0) {
+                    if (p.aftervel.x < 0) {
+                        p.aftervel.scl(-cr, cr);
+                    }
+                    p.vel = p.aftervel;
+                    p.beforevel = p.aftervel;
+                    p.pos.set(-p.pos.x, p.pos.y);
                 }
-                if (p.xpos >= 7 && p.xvel > 0) {
-                    // p.xpos = 7;
-                    p.xvel = -0.9 * p.xvel;
-                    p.yvel = 0.9 * p.yvel;
-                    p.xpos = 7 - (p.xpos - 7);
+                if (p.pos.x >= 2) {
+                    if (p.aftervel.x > 0) {
+                        p.aftervel.scl(-cr, cr);
+                    }
+                    p.vel = p.aftervel;
+                    p.beforevel = p.aftervel;
+                    p.pos.set(2 - (p.pos.x - 2), p.pos.y);
                 }
             }
 
@@ -162,22 +206,105 @@ public class Simulation {
 
     }
 
-    private double distSq(Particle p1, Particle p2) {
-        return Math.pow(p1.xpos - p2.xpos, 2) + Math.pow(p1.ypos - p2.ypos, 2);
+
+    private Vector2 getSurfacenKernel(Vector2 r, float h) {
+        float rmagsqr = r.len2();
+        float hsqr = h * h;
+        if (rmagsqr >= 0 && rmagsqr <= hsqr) {
+            return (r.scl((float) (calcSurfConstant * Math.pow(hsqr - rmagsqr, 2))));
+        } else {
+            return Vector2.Zero;
+        }
+
     }
 
-    private double dist(Particle p1, Particle p2) {
-        return Math.sqrt(Math.pow(p1.xpos - p2.xpos, 2) + Math.pow(p1.ypos - p2.ypos, 2));
+    private float getSurfacekKernel(Vector2 r, float h) {
+        float rmagsqr = r.len2();
+        float hsqr = h * h;
+        if (rmagsqr >= 0 && rmagsqr <= hsqr) {
+            return (calcSurfConstant * (hsqr - rmagsqr) * (3 * hsqr - 7 * rmagsqr));
+        } else {
+            return 0;
+        }
+
     }
 
-    public void render(ShapeRenderer shapes) {
+    private float viscoKernel(Vector2 r, float h) {
+        float rmag = r.len();
+        if (rmag >= 0 && rmag <= h) {
+            return (h - rmag) * calcViscConstant;
+        } else {
+            return 0f;
+        }
+    }
+
+    private float densityKernel(Vector2 r, float h) {
+        float rmagsqr = r.len2();
+        float hsqr = h * h;
+        if (rmagsqr >= 0 && rmagsqr <= hsqr) {
+            return (float) Math.pow(hsqr - rmagsqr, 3) * calcDensityConstant;
+        } else {
+            return 0f;
+        }
+
+    }
+
+    private Vector2 pressureKernel(Vector2 r, float h) {
+        float rmag = r.len();
+        if (rmag >= 0 && rmag <= h) {
+            return (r.scl((float) (calcPressureConstant * Math.pow(h - rmag, 2) * (1 / rmag))));
+        } else {
+            return Vector2.Zero;
+        }
+
+    }
+
+
+    private Vector2 dis(Particle p1, Particle p2) {
+        return p1.getPos().sub(p2.pos);
+    }
+
+
+    public void render(ShapeRenderer batch, Sprite circle) {
 
         for (int i = 0; i < particles.size(); i++) {
             Particle p = particles.get(i);
 
-            shapes.setColor(new Color(0f, 0f, 1, 1f));
-            shapes.circle((float) (p.xpos * 10), (float) (p.ypos * 10), 5);
+
+            batch.setColor(new Color(p.redness, 0f, (float) (1f), (float) (1)));
+            batch.circle(100 + p.pos.x * 400f, 100 + p.pos.y * 400f, 10);
+            //batch.draw(circle,100 + p.pos.x * 400f, 100 + p.pos.y * 400f);
         }
 
+    }
+
+    public void overlay(SpriteBatch batch, BitmapFont font) {
+        font.draw(batch, shorten(new StringBuilder("t=" + simTime), 8), 5, 20);
+        font.draw(batch, "fps=" + Gdx.graphics.getFramesPerSecond(), 5, 40);
+    }
+
+    private String shorten(StringBuilder s, int i) {
+
+        if (s.length() < i) {
+            for (int b = 0; b < i - s.length(); b++) {
+                s.append("0");
+            }
+        } else {
+            s.delete(i, s.length());
+        }
+
+        return s.toString();
+    }
+
+    public void spawnParticles(int x, int y) {
+
+        float a1 = (float) (2 * Math.random());
+        float a2 = (float) (-2 - 1 * Math.random());
+        for (int i = 0; i < 4; i++) {
+            for (int i2 = 0; i2 < 4; i2++) {
+                num++;
+                particles.add(new Particle(this, (x + i * 10 - 100) / 400f, ((900 - y + i2 * 10) - 100) / 400f, a1, a2, false, mass, num));
+            }
+        }
     }
 }
